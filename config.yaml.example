@@ -1,0 +1,8 @@
+rpcs:
+  lighthouse-geth-1: https://rpc.lighthouse-geth-1.pectra-devnet-ssl.url
+  lighthouse-geth-2: https://rpc.lighthouse-geth-2.pectra-devnet-ssl.url
+
+networks:
+  pectra-devnet-ssl:
+    - lighthouse-geth-1
+    - lighthouse-geth-2
