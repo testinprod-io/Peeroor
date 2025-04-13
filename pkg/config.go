@@ -1,4 +1,4 @@
-package Peeroor
+package pkg
 
 import (
 	"gopkg.in/yaml.v3"
@@ -8,13 +8,14 @@ import (
 
 const (
 	// Duration for which a node's cached connected peers remain valid.
-	connectedPeersExpiration = 10 * time.Second
+	connectedPeersExpiration = 1 * time.Minute
 )
 
 // Config holds the RPC endpoints and network definitions.
 type Config struct {
 	RPCs     map[string]string   `yaml:"rpcs"`
 	Networks map[string][]string `yaml:"networks"`
+	Interval time.Duration       `yaml:"interval" default:"60s"`
 }
 
 // LoadConfig reads and unmarshals the config YAML file.

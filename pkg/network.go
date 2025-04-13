@@ -1,7 +1,6 @@
-package Peeroor
+package pkg
 
 import (
-	"github.com/ethereum/go-ethereum/rpc"
 	"log"
 	"sync"
 	"time"
@@ -16,41 +15,43 @@ type Network struct {
 }
 
 // NewNetwork creates and initializes a Network from the given rpcKeys and config map.
-func NewNetwork(name string, rpcKeys []string, rpcMap map[string]string) *Network {
+func NewNetwork(name string, rpcKeys []string, config *Config) *Network {
 	network := &Network{
 		Name:   name,
 		Nodes:  make([]*Node, 0, len(rpcKeys)),
-		Ticker: time.NewTicker(30 * time.Second),
+		Ticker: time.NewTicker(config.Interval * time.Second),
 		Stop:   make(chan bool),
 	}
 
+	var wg sync.WaitGroup
 	// Connect to each node defined in this network.
 	for _, key := range rpcKeys {
-		url, ok := rpcMap[key]
-		if !ok {
-			log.Printf("Network %s: RPC key %s not found in config, skipping", name, key)
-			continue
-		}
-		client, err := rpc.Dial(url)
-		if err != nil {
-			log.Printf("Network %s: Failed to connect to %s (%s): %v", name, key, url, err)
-			continue
-		}
-		node := &Node{
-			Name:     key,
-			Endpoint: url,
-			Client:   client,
-			Peers:    make(map[string]bool),
-		}
-		enode, err := node.GetEnode()
-		if err != nil {
-			log.Printf("Network %s: Failed to get enode for %s (%s): %v", name, key, url, err)
-			continue
-		}
-		node.Enode = enode
-		network.Nodes = append(network.Nodes, node)
-		log.Printf("Network %s: Connected node %s with enode %s", name, key, enode)
+		wg.Add(1)
+
+		go func(key string) {
+			defer wg.Done()
+			url, ok := config.RPCs[key]
+			if !ok {
+				log.Printf("Network %s: RPC key %s not found in config, skipping", name, key)
+				return
+			}
+
+			node := &Node{
+				Name:     key,
+				Endpoint: url,
+				Peers:    make(map[string]bool),
+			}
+			enode, err := node.GetEnode()
+			if err != nil {
+				log.Printf("Network %s: Failed to get enode for %s (%s): %v", name, key, url, err)
+				return
+			}
+			node.Enode = enode
+			network.Nodes = append(network.Nodes, node)
+			log.Printf("Network %s: Connected node %s with enode %s", name, key, enode)
+		}(key)
 	}
+	wg.Wait()
 
 	// Set each node's desired peers (all other nodes in this network).
 	for i, node := range network.Nodes {
@@ -97,11 +98,9 @@ func (network *Network) UpdatePeers() {
 				defer wg.Done()
 				if err := node.RefreshPeers(); err != nil {
 					log.Printf("Network %s: Error refreshing peers for node %s: %v", network.Name, node.Name, err)
-					if err := node.Reconnect(); err != nil {
-						log.Printf("Network %s: Failed to reconnect node %s: %v", network.Name, node.Name, err)
-					}
 					return
 				}
+
 				if !node.Peers[peerNode.Enode] {
 					if err := node.AddPeer(peerNode.Enode); err != nil {
 						log.Printf("Network %s: Error re-adding peer %s to node %s: %v", network.Name, peerNode.Enode, node.Name, err)
@@ -110,6 +109,7 @@ func (network *Network) UpdatePeers() {
 					}
 				}
 			}(network.Nodes[i], network.Nodes[j])
+			time.Sleep(100 * time.Millisecond)
 
 			// Check node[j] -> node[i]
 			wg.Add(1)
@@ -117,11 +117,9 @@ func (network *Network) UpdatePeers() {
 				defer wg.Done()
 				if err := node.RefreshPeers(); err != nil {
 					log.Printf("Network %s: Error refreshing peers for node %s: %v", network.Name, node.Name, err)
-					if err := node.Reconnect(); err != nil {
-						log.Printf("Network %s: Failed to reconnect node %s: %v", network.Name, node.Name, err)
-					}
 					return
 				}
+
 				if !node.Peers[peerNode.Enode] {
 					if err := node.AddPeer(peerNode.Enode); err != nil {
 						log.Printf("Network %s: Error re-adding peer %s to node %s: %v", network.Name, peerNode.Enode, node.Name, err)
@@ -130,6 +128,7 @@ func (network *Network) UpdatePeers() {
 					}
 				}
 			}(network.Nodes[j], network.Nodes[i])
+			time.Sleep(100 * time.Millisecond)
 		}
 	}
 	wg.Wait()

@@ -1,7 +1,7 @@
 package main
 
 import (
-	"Peeroor"
+	"Peeroor/pkg"
 	"github.com/spf13/pflag"
 	"log"
 	"os"
@@ -19,7 +19,7 @@ func main() {
 	flags.Parse(os.Args)
 
 	// Load configuration from file.
-	config, err := Peeroor.LoadConfig(cliArgs.config)
+	config, err := pkg.LoadConfig(cliArgs.config)
 	if err != nil {
 		log.Fatalf("Error loading config: %v", err)
 	}
@@ -29,9 +29,9 @@ func main() {
 
 	// For each network defined in the config, create a Network and start maintenance.
 	for netName, rpcKeys := range config.Networks {
-		network := Peeroor.NewNetwork(netName, rpcKeys, config.RPCs)
+		network := pkg.NewNetwork(netName, rpcKeys, config)
 		wg.Add(1)
-		go func(nw *Peeroor.Network) {
+		go func(nw *pkg.Network) {
 			defer wg.Done()
 			nw.Maintain()
 		}(network)

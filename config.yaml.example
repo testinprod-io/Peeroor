@@ -6,3 +6,5 @@ networks:
   pectra-devnet-ssl:
     - lighthouse-geth-1
     - lighthouse-geth-2
+
+interval: 60s
